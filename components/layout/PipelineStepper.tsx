@@ -41,6 +41,11 @@ const STAGES: Array<{
     label: "6) Retrieval",
     helper: "Search and retrieve relevant chunks",
   },
+  {
+    id: "reranking",
+    label: "7) Re-ranking",
+    helper: "Reorder retrieved chunks for final context",
+  },
 ];
 
 export default function PipelineStepper() {
@@ -51,6 +56,7 @@ export default function PipelineStepper() {
   const hasChunks = usePlaygroundStore((s) => s.chunks.length > 0);
   const hasEmbeddings = usePlaygroundStore((s) => s.embeddings.length > 0);
   const hasIndex = usePlaygroundStore((s) => Boolean(s.indexStats));
+  const hasRetrievalResults = usePlaygroundStore((s) => s.retrievalResults.length > 0);
 
   return (
     <div className="flex items-stretch gap-3">
@@ -63,11 +69,22 @@ export default function PipelineStepper() {
         const isEmbeddingLocked = s.id === "embedding" && (!hasFile || !hasText || !hasChunks);
         const isIndexingLocked = s.id === "indexing" && (!hasFile || !hasText || !hasChunks || !hasEmbeddings);
         const isRetrievalLocked = s.id === "retrieval" && (!hasFile || !hasText || !hasChunks || !hasEmbeddings || !hasIndex);
+        const isRerankingLocked =
+          s.id === "reranking" &&
+          (!hasFile || !hasText || !hasChunks || !hasEmbeddings || !hasIndex || !hasRetrievalResults);
 
-        const locked = isPreprocessingLocked || isChunkingLocked || isEmbeddingLocked || isIndexingLocked || isRetrievalLocked;
+        const locked =
+          isPreprocessingLocked ||
+          isChunkingLocked ||
+          isEmbeddingLocked ||
+          isIndexingLocked ||
+          isRetrievalLocked ||
+          isRerankingLocked;
 
         const lockLabel =
-          s.id === "retrieval" && !hasIndex
+          s.id === "reranking" && !hasRetrievalResults
+            ? "Needs results"
+            : s.id === "retrieval" && !hasIndex
             ? "Needs index"
             : s.id === "indexing" && !hasEmbeddings
             ? "Needs vectors"

@@ -7,6 +7,8 @@ import type {
   DocumentMetadata,
   LogEntry,
   PipelineStageId,
+  RetrievalResult,
+  RerankingResult,
   SourceType,
 } from "@/types/pipeline";
 import { buildSampleMetadata, SAMPLE_RAW_TEXT } from "@/lib/mockData";
@@ -21,6 +23,7 @@ import {
 } from "@/lib/embedding";
 import { simulateIndexingLatency, type IndexStats } from "@/lib/indexing";
 import { simulateRetrieval } from "@/lib/retrieval";
+import { simulateReranking } from "@/lib/reranking";
 
 interface PlaygroundState {
   stage: PipelineStageId;
@@ -82,9 +85,18 @@ interface PlaygroundState {
   ) => void;
   retrievalResults: RetrievalResult[];
   retrievalLogs: LogEntry[];
+  rerankingOptions: {
+    topK: number;
+  };
+  setRerankingOptions: (
+    next: Partial<PlaygroundState["rerankingOptions"]>
+  ) => void;
+  rerankedResults: RerankingResult[];
+  rerankingLogs: LogEntry[];
 
   indexVectors: () => void;
   retrieve: () => void;
+  rerank: () => void;
 
   setRawText: (text: string) => void;
   setCleanedText: (text: string) => void;
@@ -173,6 +185,15 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
     })),
   retrievalResults: [],
   retrievalLogs: [],
+  rerankingOptions: {
+    topK: 3,
+  },
+  setRerankingOptions: (next) =>
+    set((state) => ({
+      rerankingOptions: { ...state.rerankingOptions, ...next },
+    })),
+  rerankedResults: [],
+  rerankingLogs: [],
 
   setRawText: (text) => set({ rawText: text }),
   setCleanedText: (text) => set({ cleanedText: text }),
@@ -196,7 +217,9 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
               ? { embeddingLogs: [...state.embeddingLogs, entry] }
               : stage === "indexing"
                 ? { indexingLogs: [...state.indexingLogs, entry] }
-                : { retrievalLogs: [...state.retrievalLogs, entry] };
+                : stage === "retrieval"
+                  ? { retrievalLogs: [...state.retrievalLogs, entry] }
+                  : { rerankingLogs: [...state.rerankingLogs, entry] };
     }),
 
   clearLogs: (stage) =>
@@ -211,7 +234,9 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
               ? { embeddingLogs: [] }
               : stage === "indexing"
                 ? { indexingLogs: [] }
-                : { retrievalLogs: [] }
+                : stage === "retrieval"
+                  ? { retrievalLogs: [] }
+                  : { rerankingLogs: [] }
     ),
 
   loadSample: () =>
@@ -229,6 +254,10 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
         embeddingLogs: [],
         indexStats: null,
         indexingLogs: [],
+        retrievalResults: [],
+        retrievalLogs: [],
+        rerankedResults: [],
+        rerankingLogs: [],
         ingestionLogs: [
           ...state.ingestionLogs,
           {
@@ -277,6 +306,10 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
       embeddingLogs: [],
       indexStats: null,
       indexingLogs: [],
+      retrievalResults: [],
+      retrievalLogs: [],
+      rerankedResults: [],
+      rerankingLogs: [],
     }));
 
     const steps: Array<{ t: number; progress: number; msg?: string }> = [
@@ -634,6 +667,39 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
       return {
         retrievalResults: results,
         retrievalLogs: [...state.retrievalLogs, ...logs],
+        rerankedResults: [],
+        rerankingLogs: [],
+      };
+    }),
+
+  rerank: () =>
+    set((state) => {
+      if (!state.retrievalResults.length) {
+        return {
+          rerankingLogs: [
+            ...state.rerankingLogs,
+            {
+              id: crypto.randomUUID(),
+              tsISO: new Date().toISOString(),
+              message: "No retrieval results found. Run retrieval first.",
+            },
+          ],
+        };
+      }
+
+      const top10 = [...state.retrievalResults]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 10);
+
+      const { results, logs } = simulateReranking({
+        query: state.retrievalOptions.query.trim(),
+        retrieved: top10,
+        topK: state.rerankingOptions.topK,
+      });
+
+      return {
+        rerankedResults: results,
+        rerankingLogs: [...state.rerankingLogs, ...logs],
       };
     }),
 }));

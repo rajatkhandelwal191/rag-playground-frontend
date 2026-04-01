@@ -7,6 +7,7 @@ import ChunkingStage from "@/components/chunking/ChunkingStage";
 import EmbeddingStage from "@/components/embedding/EmbeddingStage";
 import IndexingStage from "@/components/indexing/IndexingStage";
 import RetrievalStage from "@/components/retrieval/RetrievalStage";
+import RerankingStage from "@/components/reranking/RerankingStage";
 import { usePlaygroundStore } from "@/store/playgroundStore";
 
 export default function Home() {
@@ -24,8 +25,10 @@ export default function Home() {
         <EmbeddingStage />
       ) : stage === "indexing" ? (
         <IndexingStage />
-      ) : (
+      ) : stage === "retrieval" ? (
         <RetrievalStage />
+      ) : (
+        <RerankingStage />
       )}
     </main>
   );

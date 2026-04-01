@@ -4,7 +4,8 @@ export type PipelineStageId =
   | "chunking"
   | "embedding"
   | "indexing"
-  | "retrieval";
+  | "retrieval"
+  | "reranking";
 
 export type SourceType = "upload" | "sample";
 
@@ -50,5 +51,12 @@ export interface RetrievalResult {
   score: number;
   documentName: string;
   metadata?: Record<string, string | number | boolean>;
+}
+
+export interface RerankingResult extends RetrievalResult {
+  initialRank: number;
+  rerankedRank: number;
+  initialScore: number;
+  rerankedScore: number;
 }
 

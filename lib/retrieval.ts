@@ -36,7 +36,7 @@ export function simulateRetrieval({
   // We'll just take a random subset and assign scores if query is present
   const queryTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
   
-  let scoredResults: RetrievalResult[] = chunks.map((chunk) => {
+  const scoredResults: RetrievalResult[] = chunks.map((chunk) => {
     let score = 0.5 + Math.random() * 0.3; // Base random score
     
     // Boost score if query terms are found in chunk content
@@ -54,18 +54,21 @@ export function simulateRetrieval({
     };
   });
 
-  // Apply score threshold
-  scoredResults = scoredResults.filter(r => r.score >= options.scoreThreshold);
+  const sorted = [...scoredResults].sort((a, b) => b.score - a.score);
+  const filtered = sorted.filter((r) => r.score >= options.scoreThreshold);
+  const topK = Math.max(1, options.topK);
+  const topResults =
+    filtered.length > 0 ? filtered.slice(0, topK) : sorted.slice(0, topK);
 
-  // Sort by score
-  scoredResults.sort((a, b) => b.score - a.score);
-
-  // Take top K
-  const topResults = scoredResults.slice(0, options.topK);
+  if (!filtered.length && sorted.length) {
+    addLog(
+      `No results above threshold ${options.scoreThreshold.toFixed(2)}, returning top ${topResults.length} fallback results`
+    );
+  }
 
   const latencyMs = Math.floor(Math.random() * 50) + 50; // 50-100ms
   
-  addLog(`${topResults.length} results found`);
+  addLog(`Top ${topResults.length} results found`);
   addLog(`Completed in ${latencyMs}ms`);
 
   return {
