@@ -15,6 +15,15 @@ interface PlaygroundState {
   uploadProgress: number;
   isUploading: boolean;
 
+  preprocessingOptions: {
+    lowercase: boolean;
+    preservePunctuation: boolean;
+    ocrCleanup: boolean;
+  };
+  setPreprocessingOptions: (
+    next: Partial<PlaygroundState["preprocessingOptions"]>
+  ) => void;
+
   setRawText: (text: string) => void;
   setCleanedText: (text: string) => void;
   setSourceType: (sourceType: SourceType) => void;
@@ -38,6 +47,16 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
   preprocessingLogs: [],
   uploadProgress: 0,
   isUploading: false,
+
+  preprocessingOptions: {
+    lowercase: false,
+    preservePunctuation: true,
+    ocrCleanup: true,
+  },
+  setPreprocessingOptions: (next) =>
+    set((state) => ({
+      preprocessingOptions: { ...state.preprocessingOptions, ...next },
+    })),
 
   setRawText: (text) => set({ rawText: text }),
   setCleanedText: (text) => set({ cleanedText: text }),

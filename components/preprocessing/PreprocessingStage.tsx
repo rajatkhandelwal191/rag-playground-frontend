@@ -5,6 +5,7 @@ import TextComparisonPanel from "@/components/preprocessing/TextComparisonPanel"
 import ProcessingLogs from "@/components/preprocessing/ProcessingLogs";
 import FileDetailsCard from "@/components/ingestion/FileDetailsCard";
 import { usePlaygroundStore } from "@/store/playgroundStore";
+import MetadataExtractionCard from "@/components/preprocessing/MetadataExtractionCard";
 
 export default function PreprocessingStage() {
   const file = usePlaygroundStore((s) => s.file);
@@ -15,6 +16,7 @@ export default function PreprocessingStage() {
       <div className="col-span-3 space-y-4">
         <FileDetailsCard file={file} />
         <CleaningControls />
+        <MetadataExtractionCard />
       </div>
 
       <div className="col-span-6">
