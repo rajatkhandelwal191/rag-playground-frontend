@@ -122,6 +122,9 @@ interface PlaygroundState {
   calculateMetrics: () => void;
   resetEvaluation: () => void;
 
+  experimentLogs: LogEntry[];
+  resetExperiment: () => void;
+
   indexVectors: () => void;
   retrieve: () => void;
   rerank: () => void;
@@ -242,6 +245,8 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
   evaluationMetrics: null,
   evaluationLogs: [],
 
+  experimentLogs: [],
+
   setRawText: (text) => set({ rawText: text }),
   setCleanedText: (text) => set({ cleanedText: text }),
 
@@ -270,7 +275,9 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
                     ? { rerankingLogs: [...state.rerankingLogs, entry] }
                     : stage === "generation"
                       ? { generationLogs: [...state.generationLogs, entry] }
-                      : { evaluationLogs: [...state.evaluationLogs, entry] };
+                      : stage === "evaluation"
+                      ? { evaluationLogs: [...state.evaluationLogs, entry] }
+                      : { experimentLogs: [...state.experimentLogs, entry] };
     }),
 
   clearLogs: (stage) =>
@@ -291,7 +298,9 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
                     ? { rerankingLogs: [] }
                     : stage === "generation"
                       ? { generationLogs: [] }
-                      : { evaluationLogs: [] }
+                      : stage === "evaluation"
+                      ? { evaluationLogs: [] }
+                      : { experimentLogs: [] }
     ),
 
   loadSample: () =>
@@ -937,5 +946,10 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
     set({
       evaluationMetrics: null,
       evaluationLogs: [],
+    }),
+
+  resetExperiment: () =>
+    set({
+      experimentLogs: [],
     }),
 }));

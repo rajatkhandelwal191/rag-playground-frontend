@@ -56,6 +56,11 @@ const STAGES: Array<{
     label: "9) Evaluation",
     helper: "RAG metrics and observability",
   },
+  {
+    id: "experiment",
+    label: "10) Experiment",
+    helper: "Pipeline summary and analytics",
+  },
 ];
 
 export default function PipelineStepper() {
@@ -91,6 +96,9 @@ export default function PipelineStepper() {
         const isEvaluationLocked =
           s.id === "evaluation" &&
           (!hasFile || !hasText || !hasChunks || !hasEmbeddings || !hasIndex || !hasRetrievedChunks || !hasGenerationResult);
+        const isExperimentLocked =
+          s.id === "experiment" &&
+          (!hasFile || !hasText || !hasChunks || !hasEmbeddings || !hasIndex);
 
         const locked =
           isPreprocessingLocked ||
@@ -100,24 +108,27 @@ export default function PipelineStepper() {
           isRetrievalLocked ||
           isRerankingLocked ||
           isGenerationLocked ||
-          isEvaluationLocked;
+          isEvaluationLocked ||
+          isExperimentLocked;
 
         const lockLabel =
-          s.id === "evaluation" && !hasGenerationResult
-            ? "Needs generation"
-            : s.id === "generation" && !hasRetrievedChunks
-              ? "Needs retrieval"
-              : s.id === "reranking" && !hasRetrievalResults
-                ? "Needs results"
-                : s.id === "retrieval" && !hasIndex
-                  ? "Needs index"
-                  : s.id === "indexing" && !hasEmbeddings
-                    ? "Needs vectors"
-                    : s.id === "embedding" && !hasChunks
-                      ? "Needs chunks"
-                      : s.id === "chunking" && !hasText
-                        ? "Needs text"
-                        : "Needs file";
+          s.id === "experiment" && !hasIndex
+            ? "Needs pipeline"
+            : s.id === "evaluation" && !hasGenerationResult
+              ? "Needs generation"
+              : s.id === "generation" && !hasRetrievedChunks
+                ? "Needs retrieval"
+                : s.id === "reranking" && !hasRetrievalResults
+                  ? "Needs results"
+                  : s.id === "retrieval" && !hasIndex
+                    ? "Needs index"
+                    : s.id === "indexing" && !hasEmbeddings
+                      ? "Needs vectors"
+                      : s.id === "embedding" && !hasChunks
+                        ? "Needs chunks"
+                        : s.id === "chunking" && !hasText
+                          ? "Needs text"
+                          : "Needs file";
         return (
           <div key={s.id} className="flex-1">
             <Button

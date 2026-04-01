@@ -7,7 +7,8 @@ export type PipelineStageId =
   | "retrieval"
   | "reranking"
   | "generation"
-  | "evaluation";
+  | "evaluation"
+  | "experiment";
 
 export type SourceType = "upload" | "sample";
 
