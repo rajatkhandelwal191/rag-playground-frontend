@@ -26,6 +26,11 @@ const STAGES: Array<{
     label: "3) Chunking",
     helper: "Split text into retrievable chunks",
   },
+  {
+    id: "embedding",
+    label: "4) Embedding",
+    helper: "Convert chunks into vectors",
+  },
 ];
 
 export default function PipelineStepper() {
@@ -33,6 +38,7 @@ export default function PipelineStepper() {
   const setStage = usePlaygroundStore((s) => s.setStage);
   const hasFile = usePlaygroundStore((s) => Boolean(s.file));
   const hasText = usePlaygroundStore((s) => Boolean((s.cleanedText || s.rawText).trim()));
+  const hasChunks = usePlaygroundStore((s) => s.chunks.length > 0);
 
   return (
     <div className="flex items-stretch gap-3">
@@ -40,8 +46,14 @@ export default function PipelineStepper() {
         const isActive = stage === s.id;
         const isLocked =
           (s.id === "preprocessing" && !hasFile) || (s.id === "chunking" && !hasText);
+        const isLocked2 = s.id === "embedding" && !hasChunks;
+        const locked = isLocked || isLocked2;
         const lockLabel =
-          s.id === "chunking" && !hasText ? "Needs text" : "Needs file";
+          s.id === "embedding" && !hasChunks
+            ? "Needs chunks"
+            : s.id === "chunking" && !hasText
+              ? "Needs text"
+              : "Needs file";
         return (
           <div key={s.id} className="flex-1">
             <Button
@@ -52,12 +64,12 @@ export default function PipelineStepper() {
               )}
               variant={isActive ? "default" : "outline"}
               onClick={() => setStage(s.id)}
-              disabled={isLocked}
+              disabled={locked}
             >
               <div className="flex flex-col items-start gap-0.5">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">{s.label}</span>
-                  {isLocked ? <Badge variant="secondary">{lockLabel}</Badge> : null}
+                  {locked ? <Badge variant="secondary">{lockLabel}</Badge> : null}
                 </div>
                 <span className="text-xs text-muted-foreground">{s.helper}</span>
               </div>

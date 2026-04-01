@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import type {
   ChunkStrategy,
+  EmbeddingModelId,
+  EmbeddingProvider,
   DocumentMetadata,
   LogEntry,
   PipelineStageId,
@@ -8,6 +10,14 @@ import type {
 } from "@/types/pipeline";
 import { buildSampleMetadata, SAMPLE_RAW_TEXT } from "@/lib/mockData";
 import { makeChunks, type Chunk } from "@/lib/chunking";
+import {
+  defaultModelForProvider,
+  generateMockEmbedding,
+  modelDimension,
+  projectTo2D,
+  type EmbeddingVector,
+  type VectorPoint2D,
+} from "@/lib/embedding";
 
 interface PlaygroundState {
   stage: PipelineStageId;
@@ -40,6 +50,16 @@ interface PlaygroundState {
   chunks: Chunk[];
   chunkingLogs: LogEntry[];
 
+  embeddingOptions: {
+    provider: EmbeddingProvider;
+    model: EmbeddingModelId;
+    batchSize: number;
+  };
+  setEmbeddingOptions: (next: Partial<PlaygroundState["embeddingOptions"]>) => void;
+  embeddings: EmbeddingVector[];
+  embeddingPoints2D: VectorPoint2D[];
+  embeddingLogs: LogEntry[];
+
   setRawText: (text: string) => void;
   setCleanedText: (text: string) => void;
   setSourceType: (sourceType: SourceType) => void;
@@ -51,6 +71,8 @@ interface PlaygroundState {
   startUploadSimulation: (file: File) => void;
 
   generateChunks: () => void;
+
+  generateEmbeddings: () => void;
 }
 
 export const usePlaygroundStore = create<PlaygroundState>((set) => ({
@@ -88,6 +110,19 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
   chunks: [],
   chunkingLogs: [],
 
+  embeddingOptions: {
+    provider: "google",
+    model: defaultModelForProvider("google"),
+    batchSize: 16,
+  },
+  setEmbeddingOptions: (next) =>
+    set((state) => ({
+      embeddingOptions: { ...state.embeddingOptions, ...next },
+    })),
+  embeddings: [],
+  embeddingPoints2D: [],
+  embeddingLogs: [],
+
   setRawText: (text) => set({ rawText: text }),
   setCleanedText: (text) => set({ cleanedText: text }),
 
@@ -104,7 +139,9 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
         ? { ingestionLogs: [...state.ingestionLogs, entry] }
         : stage === "preprocessing"
           ? { preprocessingLogs: [...state.preprocessingLogs, entry] }
-          : { chunkingLogs: [...state.chunkingLogs, entry] };
+          : stage === "chunking"
+            ? { chunkingLogs: [...state.chunkingLogs, entry] }
+            : { embeddingLogs: [...state.embeddingLogs, entry] };
     }),
 
   clearLogs: (stage) =>
@@ -113,7 +150,9 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
         ? { ingestionLogs: [] }
         : stage === "preprocessing"
           ? { preprocessingLogs: [] }
-          : { chunkingLogs: [] }
+          : stage === "chunking"
+            ? { chunkingLogs: [] }
+            : { embeddingLogs: [] }
     ),
 
   loadSample: () =>
@@ -126,6 +165,9 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
         cleanedText: "",
         chunks: [],
         chunkingLogs: [],
+        embeddings: [],
+        embeddingPoints2D: [],
+        embeddingLogs: [],
         ingestionLogs: [
           ...state.ingestionLogs,
           {
@@ -169,6 +211,9 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
       cleanedText: "",
       chunks: [],
       chunkingLogs: [],
+      embeddings: [],
+      embeddingPoints2D: [],
+      embeddingLogs: [],
     }));
 
     const steps: Array<{ t: number; progress: number; msg?: string }> = [
@@ -312,6 +357,95 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
           ...overlapLogs,
           ...footerLogs,
         ],
+      };
+    }),
+
+  generateEmbeddings: () =>
+    set((state) => {
+      const docId = state.file?.documentName ?? "unknown_document";
+      const provider = state.embeddingOptions.provider;
+      const model = state.embeddingOptions.model;
+      const dim = modelDimension(model);
+      const batchSize = Math.max(1, Math.floor(state.embeddingOptions.batchSize || 1));
+
+      const chunks = state.chunks;
+      if (!chunks.length) {
+        const e: LogEntry = {
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: "No chunks available to embed",
+        };
+        return { embeddingLogs: [...state.embeddingLogs, e] };
+      }
+
+      const logs: LogEntry[] = [
+        {
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: "Generating embeddings",
+        },
+        {
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: `Embedding provider: ${provider}`,
+        },
+        {
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: `Embedding model: ${model}`,
+        },
+      ];
+
+      const embeddings: EmbeddingVector[] = [];
+      const totalBatches = Math.ceil(chunks.length / batchSize);
+      for (let b = 0; b < totalBatches; b++) {
+        const slice = chunks.slice(b * batchSize, (b + 1) * batchSize);
+        slice.forEach((c) => {
+          embeddings.push(
+            generateMockEmbedding({
+              provider,
+              model,
+              chunkId: c.chunkId,
+              documentId: docId,
+            })
+          );
+        });
+        const latencyAvg =
+          Math.round(
+            slice.reduce((a, c) => {
+              const v = embeddings.find((e) => e.chunkId === c.chunkId);
+              return a + (v?.latencyMs ?? 0);
+            }, 0) / Math.max(1, slice.length)
+          ) || 0;
+        logs.push({
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: `Batch ${b + 1} complete`,
+        });
+        logs.push({
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: `Latency ${latencyAvg}ms`,
+        });
+      }
+
+      logs.push({
+        id: crypto.randomUUID(),
+        tsISO: new Date().toISOString(),
+        message: `Vector size ${dim}`,
+      });
+
+      const points = projectTo2D(embeddings);
+      logs.push({
+        id: crypto.randomUUID(),
+        tsISO: new Date().toISOString(),
+        message: "2D projection generated",
+      });
+
+      return {
+        embeddings,
+        embeddingPoints2D: points,
+        embeddingLogs: [...state.embeddingLogs, ...logs],
       };
     }),
 }));
