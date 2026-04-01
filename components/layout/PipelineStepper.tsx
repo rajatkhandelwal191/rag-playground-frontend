@@ -21,18 +21,27 @@ const STAGES: Array<{
     label: "2) Preprocessing & Cleaning",
     helper: "Normalize and prepare extracted text",
   },
+  {
+    id: "chunking",
+    label: "3) Chunking",
+    helper: "Split text into retrievable chunks",
+  },
 ];
 
 export default function PipelineStepper() {
   const stage = usePlaygroundStore((s) => s.stage);
   const setStage = usePlaygroundStore((s) => s.setStage);
   const hasFile = usePlaygroundStore((s) => Boolean(s.file));
+  const hasText = usePlaygroundStore((s) => Boolean((s.cleanedText || s.rawText).trim()));
 
   return (
     <div className="flex items-stretch gap-3">
       {STAGES.map((s, idx) => {
         const isActive = stage === s.id;
-        const isLocked = s.id === "preprocessing" && !hasFile;
+        const isLocked =
+          (s.id === "preprocessing" && !hasFile) || (s.id === "chunking" && !hasText);
+        const lockLabel =
+          s.id === "chunking" && !hasText ? "Needs text" : "Needs file";
         return (
           <div key={s.id} className="flex-1">
             <Button
@@ -48,7 +57,7 @@ export default function PipelineStepper() {
               <div className="flex flex-col items-start gap-0.5">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">{s.label}</span>
-                  {isLocked ? <Badge variant="secondary">Needs file</Badge> : null}
+                  {isLocked ? <Badge variant="secondary">{lockLabel}</Badge> : null}
                 </div>
                 <span className="text-xs text-muted-foreground">{s.helper}</span>
               </div>

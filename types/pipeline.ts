@@ -1,6 +1,14 @@
-export type PipelineStageId = "ingestion" | "preprocessing";
+export type PipelineStageId = "ingestion" | "preprocessing" | "chunking";
 
 export type SourceType = "upload" | "sample";
+
+export type ChunkStrategy =
+  | "character"
+  | "token"
+  | "sentence"
+  | "recursive"
+  | "semantic"
+  | "important";
 
 export interface DocumentMetadata {
   documentName: string;

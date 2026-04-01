@@ -1,6 +1,13 @@
 import { create } from "zustand";
-import type { DocumentMetadata, LogEntry, PipelineStageId, SourceType } from "@/types/pipeline";
+import type {
+  ChunkStrategy,
+  DocumentMetadata,
+  LogEntry,
+  PipelineStageId,
+  SourceType,
+} from "@/types/pipeline";
 import { buildSampleMetadata, SAMPLE_RAW_TEXT } from "@/lib/mockData";
+import { makeChunks, type Chunk } from "@/lib/chunking";
 
 interface PlaygroundState {
   stage: PipelineStageId;
@@ -24,6 +31,15 @@ interface PlaygroundState {
     next: Partial<PlaygroundState["preprocessingOptions"]>
   ) => void;
 
+  chunkingOptions: {
+    chunkSize: number;
+    overlap: number;
+    strategy: ChunkStrategy;
+  };
+  setChunkingOptions: (next: Partial<PlaygroundState["chunkingOptions"]>) => void;
+  chunks: Chunk[];
+  chunkingLogs: LogEntry[];
+
   setRawText: (text: string) => void;
   setCleanedText: (text: string) => void;
   setSourceType: (sourceType: SourceType) => void;
@@ -33,6 +49,8 @@ interface PlaygroundState {
 
   loadSample: () => void;
   startUploadSimulation: (file: File) => void;
+
+  generateChunks: () => void;
 }
 
 export const usePlaygroundStore = create<PlaygroundState>((set) => ({
@@ -58,6 +76,18 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
       preprocessingOptions: { ...state.preprocessingOptions, ...next },
     })),
 
+  chunkingOptions: {
+    chunkSize: 800,
+    overlap: 120,
+    strategy: "recursive",
+  },
+  setChunkingOptions: (next) =>
+    set((state) => ({
+      chunkingOptions: { ...state.chunkingOptions, ...next },
+    })),
+  chunks: [],
+  chunkingLogs: [],
+
   setRawText: (text) => set({ rawText: text }),
   setCleanedText: (text) => set({ cleanedText: text }),
 
@@ -72,12 +102,18 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
       };
       return stage === "ingestion"
         ? { ingestionLogs: [...state.ingestionLogs, entry] }
-        : { preprocessingLogs: [...state.preprocessingLogs, entry] };
+        : stage === "preprocessing"
+          ? { preprocessingLogs: [...state.preprocessingLogs, entry] }
+          : { chunkingLogs: [...state.chunkingLogs, entry] };
     }),
 
   clearLogs: (stage) =>
     set(() =>
-      stage === "ingestion" ? { ingestionLogs: [] } : { preprocessingLogs: [] }
+      stage === "ingestion"
+        ? { ingestionLogs: [] }
+        : stage === "preprocessing"
+          ? { preprocessingLogs: [] }
+          : { chunkingLogs: [] }
     ),
 
   loadSample: () =>
@@ -88,6 +124,8 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
         file: meta,
         rawText: SAMPLE_RAW_TEXT,
         cleanedText: "",
+        chunks: [],
+        chunkingLogs: [],
         ingestionLogs: [
           ...state.ingestionLogs,
           {
@@ -129,6 +167,8 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
       },
       rawText: "",
       cleanedText: "",
+        chunks: [],
+        chunkingLogs: [],
     }));
 
     const steps: Array<{ t: number; progress: number; msg?: string }> = [
@@ -181,4 +221,39 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
       }));
     }, 2850);
   },
+
+  generateChunks: () =>
+    set((state) => {
+      const text = (state.cleanedText || state.rawText).trim();
+      const { chunks, warnings } = makeChunks({
+        text,
+        strategy: state.chunkingOptions.strategy,
+        chunkSize: state.chunkingOptions.chunkSize,
+        overlap: state.chunkingOptions.overlap,
+      });
+
+      const now = new Date().toISOString();
+      const baseLogs: LogEntry[] = [
+        {
+          id: crypto.randomUUID(),
+          tsISO: now,
+          message: "Chunking started",
+        },
+        ...warnings.map((w) => ({
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: w,
+        })),
+        {
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: `Generated ${chunks.length} chunks`,
+        },
+      ];
+
+      return {
+        chunks,
+        chunkingLogs: [...state.chunkingLogs, ...baseLogs],
+      };
+    }),
 }));
