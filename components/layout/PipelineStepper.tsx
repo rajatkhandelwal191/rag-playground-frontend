@@ -51,6 +51,11 @@ const STAGES: Array<{
     label: "8) Generation",
     helper: "LLM prompt and response generation",
   },
+  {
+    id: "evaluation",
+    label: "9) Evaluation",
+    helper: "RAG metrics and observability",
+  },
 ];
 
 export default function PipelineStepper() {
@@ -64,6 +69,7 @@ export default function PipelineStepper() {
   const hasRetrievalResults = usePlaygroundStore((s) => s.retrievalResults.length > 0);
   const hasRerankedResults = usePlaygroundStore((s) => s.rerankedResults.length > 0);
   const hasRetrievedChunks = hasRetrievalResults || hasRerankedResults;
+  const hasGenerationResult = usePlaygroundStore((s) => Boolean(s.generationResult));
 
   return (
     <div className="flex items-stretch gap-3">
@@ -82,6 +88,9 @@ export default function PipelineStepper() {
         const isGenerationLocked =
           s.id === "generation" &&
           (!hasFile || !hasText || !hasChunks || !hasEmbeddings || !hasIndex || !hasRetrievedChunks);
+        const isEvaluationLocked =
+          s.id === "evaluation" &&
+          (!hasFile || !hasText || !hasChunks || !hasEmbeddings || !hasIndex || !hasRetrievedChunks || !hasGenerationResult);
 
         const locked =
           isPreprocessingLocked ||
@@ -90,22 +99,25 @@ export default function PipelineStepper() {
           isIndexingLocked ||
           isRetrievalLocked ||
           isRerankingLocked ||
-          isGenerationLocked;
+          isGenerationLocked ||
+          isEvaluationLocked;
 
         const lockLabel =
-          s.id === "generation" && !hasRetrievedChunks
-            ? "Needs retrieval"
-            : s.id === "reranking" && !hasRetrievalResults
-              ? "Needs results"
-              : s.id === "retrieval" && !hasIndex
-                ? "Needs index"
-                : s.id === "indexing" && !hasEmbeddings
-                  ? "Needs vectors"
-                  : s.id === "embedding" && !hasChunks
-                    ? "Needs chunks"
-                    : s.id === "chunking" && !hasText
-                      ? "Needs text"
-                      : "Needs file";
+          s.id === "evaluation" && !hasGenerationResult
+            ? "Needs generation"
+            : s.id === "generation" && !hasRetrievedChunks
+              ? "Needs retrieval"
+              : s.id === "reranking" && !hasRetrievalResults
+                ? "Needs results"
+                : s.id === "retrieval" && !hasIndex
+                  ? "Needs index"
+                  : s.id === "indexing" && !hasEmbeddings
+                    ? "Needs vectors"
+                    : s.id === "embedding" && !hasChunks
+                      ? "Needs chunks"
+                      : s.id === "chunking" && !hasText
+                        ? "Needs text"
+                        : "Needs file";
         return (
           <div key={s.id} className="flex-1">
             <Button

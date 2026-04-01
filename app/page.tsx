@@ -9,6 +9,7 @@ import IndexingStage from "@/components/indexing/IndexingStage";
 import RetrievalStage from "@/components/retrieval/RetrievalStage";
 import RerankingStage from "@/components/reranking/RerankingStage";
 import GenerationStage from "@/components/generation/GenerationStage";
+import EvaluationStage from "@/components/evaluation/EvaluationStage";
 import { usePlaygroundStore } from "@/store/playgroundStore";
 
 export default function Home() {
@@ -30,8 +31,10 @@ export default function Home() {
         <RetrievalStage />
       ) : stage === "reranking" ? (
         <RerankingStage />
-      ) : (
+      ) : stage === "generation" ? (
         <GenerationStage />
+      ) : (
+        <EvaluationStage />
       )}
     </main>
   );

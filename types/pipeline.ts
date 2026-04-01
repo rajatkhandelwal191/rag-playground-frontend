@@ -6,7 +6,8 @@ export type PipelineStageId =
   | "indexing"
   | "retrieval"
   | "reranking"
-  | "generation";
+  | "generation"
+  | "evaluation";
 
 export type SourceType = "upload" | "sample";
 
@@ -93,6 +94,18 @@ export interface GenerationResult {
   outputTokens: number;
   latencyMs: number;
   chunksUsed: number;
+}
+
+export interface EvaluationMetrics {
+  latency: number;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCost: number;
+  confidence: number;
+  faithfulness: number;
+  relevance: number;
+  contextUtilization: number;
+  responseQuality: number;
 }
 
 
