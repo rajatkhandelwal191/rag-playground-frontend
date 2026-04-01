@@ -27,6 +27,7 @@ export default function ChunkingStage() {
   const generateChunks = usePlaygroundStore((s) => s.generateChunks);
   const rawText = usePlaygroundStore((s) => s.rawText);
   const cleanedText = usePlaygroundStore((s) => s.cleanedText);
+  const documentId = usePlaygroundStore((s) => s.file?.documentName ?? "—");
 
   const baseText = (cleanedText || rawText).trim();
   const [selectedChunkId, setSelectedChunkId] = React.useState<string | null>(
@@ -141,13 +142,13 @@ export default function ChunkingStage() {
         <Card className="h-full">
           <CardHeader className="space-y-1">
             <CardTitle className="flex items-center justify-between gap-2">
-              <span>Chunks preview</span>
+              <span>Output panel</span>
               <Badge variant="secondary">
                 {chunks.length ? "Generated" : "Not generated"}
               </Badge>
             </CardTitle>
             <div className="text-sm text-muted-foreground">
-              Select a chunk below to see its full text.
+              Generated chunks (cards) with positions and token counts.
             </div>
           </CardHeader>
           <CardContent className="grid grid-cols-12 gap-4 h-[520px]">
@@ -160,12 +161,30 @@ export default function ChunkingStage() {
                     className="w-full text-left rounded-md border bg-background p-2 hover:bg-muted/40 transition-colors"
                     onClick={() => setSelectedChunkId(c.id)}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium">Chunk {c.index + 1}</span>
-                      <Badge variant="outline">{c.text.length}</Badge>
-                    </div>
-                    <div className="text-xs text-muted-foreground line-clamp-2">
-                      {c.text.slice(0, 140)}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold">{c.chunkId}</span>
+                        <Badge variant="outline">{c.tokenCount} tok</Badge>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                        <div className="text-muted-foreground">start</div>
+                        <div className="text-right font-medium">
+                          {c.start >= 0 ? c.start : "—"}
+                        </div>
+                        <div className="text-muted-foreground">end</div>
+                        <div className="text-right font-medium">
+                          {c.end >= 0 ? c.end : "—"}
+                        </div>
+                        <div className="text-muted-foreground">document id</div>
+                        <div className="text-right font-medium truncate">
+                          {documentId}
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-muted-foreground line-clamp-3">
+                        {c.text.slice(0, 160)}
+                      </div>
                     </div>
                   </button>
                 ))

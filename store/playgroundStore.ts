@@ -167,8 +167,8 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
       },
       rawText: "",
       cleanedText: "",
-        chunks: [],
-        chunkingLogs: [],
+      chunks: [],
+      chunkingLogs: [],
     }));
 
     const steps: Array<{ t: number; progress: number; msg?: string }> = [
@@ -233,27 +233,85 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
       });
 
       const now = new Date().toISOString();
+      const docId = state.file?.documentName ?? "unknown_document";
+      const strategyLabel =
+        state.chunkingOptions.strategy === "character"
+          ? "character"
+          : state.chunkingOptions.strategy === "token"
+            ? "token"
+            : state.chunkingOptions.strategy === "sentence"
+              ? "sentence"
+              : state.chunkingOptions.strategy === "recursive"
+                ? "recursive"
+                : state.chunkingOptions.strategy === "semantic"
+                  ? "semantic"
+                  : "important";
+
       const baseLogs: LogEntry[] = [
+        { id: crypto.randomUUID(), tsISO: now, message: "Chunking started" },
         {
           id: crypto.randomUUID(),
-          tsISO: now,
-          message: "Chunking started",
+          tsISO: new Date().toISOString(),
+          message: `Using ${strategyLabel} splitter`,
         },
         ...warnings.map((w) => ({
           id: crypto.randomUUID(),
           tsISO: new Date().toISOString(),
           message: w,
         })),
+      ];
+
+      const perChunkLogs: LogEntry[] = [];
+      const perChunkCap = 200;
+      if (chunks.length <= perChunkCap) {
+        chunks.forEach((c) => {
+          perChunkLogs.push({
+            id: crypto.randomUUID(),
+            tsISO: new Date().toISOString(),
+            message: `Created ${c.chunkId}`,
+          });
+        });
+      } else {
+        perChunkLogs.push({
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: `Created ${chunks.length} chunks (suppressed per-chunk logs)`,
+        });
+      }
+
+      const overlapLogs: LogEntry[] =
+        state.chunkingOptions.overlap > 0
+          ? [
+              {
+                id: crypto.randomUUID(),
+                tsISO: new Date().toISOString(),
+                message: "Overlap applied",
+              },
+            ]
+          : [];
+
+      const footerLogs: LogEntry[] = [
         {
           id: crypto.randomUUID(),
           tsISO: new Date().toISOString(),
-          message: `Generated ${chunks.length} chunks`,
+          message: `Document id: ${docId}`,
+        },
+        {
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: "Chunking completed",
         },
       ];
 
       return {
         chunks,
-        chunkingLogs: [...state.chunkingLogs, ...baseLogs],
+        chunkingLogs: [
+          ...state.chunkingLogs,
+          ...baseLogs,
+          ...perChunkLogs,
+          ...overlapLogs,
+          ...footerLogs,
+        ],
       };
     }),
 }));
