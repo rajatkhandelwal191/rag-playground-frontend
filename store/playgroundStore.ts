@@ -10,6 +10,10 @@ import type {
   RetrievalResult,
   RerankingResult,
   SourceType,
+  LLMProvider,
+  LLMModelId,
+  PromptTemplateId,
+  GenerationResult,
 } from "@/types/pipeline";
 import { buildSampleMetadata, SAMPLE_RAW_TEXT } from "@/lib/mockData";
 import { makeChunks, type Chunk } from "@/lib/chunking";
@@ -24,6 +28,7 @@ import {
 import { simulateIndexingLatency, type IndexStats } from "@/lib/indexing";
 import { simulateRetrieval } from "@/lib/retrieval";
 import { simulateReranking } from "@/lib/reranking";
+import { simulateGeneration, defaultModelForLLMProvider, PROMPT_TEMPLATES } from "@/lib/generation";
 
 interface PlaygroundState {
   stage: PipelineStageId;
@@ -93,6 +98,23 @@ interface PlaygroundState {
   ) => void;
   rerankedResults: RerankingResult[];
   rerankingLogs: LogEntry[];
+
+  generationOptions: {
+    provider: LLMProvider;
+    model: LLMModelId;
+    promptTemplate: PromptTemplateId;
+    temperature: number;
+    maxTokens: number;
+  };
+  setGenerationOptions: (
+    next: Partial<PlaygroundState["generationOptions"]>
+  ) => void;
+  generationResult: GenerationResult | null;
+  generationLogs: LogEntry[];
+  isGenerating: boolean;
+  currentResponse: string;
+  generateResponse: () => void;
+  resetGeneration: () => void;
 
   indexVectors: () => void;
   retrieve: () => void;
@@ -195,6 +217,22 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
   rerankedResults: [],
   rerankingLogs: [],
 
+  generationOptions: {
+    provider: "openai",
+    model: defaultModelForLLMProvider("openai"),
+    promptTemplate: "basic-qa",
+    temperature: 0.7,
+    maxTokens: 1024,
+  },
+  setGenerationOptions: (next) =>
+    set((state) => ({
+      generationOptions: { ...state.generationOptions, ...next },
+    })),
+  generationResult: null,
+  generationLogs: [],
+  isGenerating: false,
+  currentResponse: "",
+
   setRawText: (text) => set({ rawText: text }),
   setCleanedText: (text) => set({ cleanedText: text }),
 
@@ -219,7 +257,9 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
                 ? { indexingLogs: [...state.indexingLogs, entry] }
                 : stage === "retrieval"
                   ? { retrievalLogs: [...state.retrievalLogs, entry] }
-                  : { rerankingLogs: [...state.rerankingLogs, entry] };
+                  : stage === "reranking"
+                    ? { rerankingLogs: [...state.rerankingLogs, entry] }
+                    : { generationLogs: [...state.generationLogs, entry] };
     }),
 
   clearLogs: (stage) =>
@@ -236,7 +276,9 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
                 ? { indexingLogs: [] }
                 : stage === "retrieval"
                   ? { retrievalLogs: [] }
-                  : { rerankingLogs: [] }
+                  : stage === "reranking"
+                    ? { rerankingLogs: [] }
+                    : { generationLogs: [] }
     ),
 
   loadSample: () =>
@@ -701,5 +743,66 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
         rerankedResults: results,
         rerankingLogs: [...state.rerankingLogs, ...logs],
       };
+    }),
+
+  generateResponse: () =>
+    set((state) => {
+      const query = state.retrievalOptions.query.trim();
+      
+      if (!query) {
+        return {
+          generationLogs: [
+            ...state.generationLogs,
+            {
+              id: crypto.randomUUID(),
+              tsISO: new Date().toISOString(),
+              message: "Please enter a search query in the retrieval stage first",
+            },
+          ],
+        };
+      }
+
+      const chunksToUse = state.rerankedResults.length > 0 
+        ? state.rerankedResults 
+        : state.retrievalResults;
+      
+      if (!chunksToUse.length) {
+        return {
+          generationLogs: [
+            ...state.generationLogs,
+            {
+              id: crypto.randomUUID(),
+              tsISO: new Date().toISOString(),
+              message: "No retrieved chunks available. Run retrieval first.",
+            },
+          ],
+        };
+      }
+
+      const { result, logs } = simulateGeneration({
+        query,
+        chunks: chunksToUse,
+        options: {
+          provider: state.generationOptions.provider,
+          model: state.generationOptions.model,
+          promptTemplate: state.generationOptions.promptTemplate,
+          temperature: state.generationOptions.temperature,
+          maxTokens: state.generationOptions.maxTokens,
+        },
+      });
+
+      return {
+        isGenerating: true,
+        generationResult: result,
+        generationLogs: [...state.generationLogs, ...logs],
+      };
+    }),
+
+  resetGeneration: () =>
+    set({
+      generationResult: null,
+      generationLogs: [],
+      isGenerating: false,
+      currentResponse: "",
     }),
 }));

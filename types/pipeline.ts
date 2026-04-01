@@ -5,7 +5,8 @@ export type PipelineStageId =
   | "embedding"
   | "indexing"
   | "retrieval"
-  | "reranking";
+  | "reranking"
+  | "generation";
 
 export type SourceType = "upload" | "sample";
 
@@ -59,4 +60,39 @@ export interface RerankingResult extends RetrievalResult {
   initialScore: number;
   rerankedScore: number;
 }
+
+export type LLMProvider = "openai" | "anthropic" | "google" | "local";
+
+export type LLMModelId =
+  | "gpt-4o"
+  | "gpt-4o-mini"
+  | "claude-3-sonnet"
+  | "claude-3-haiku"
+  | "gemini-1.5-flash"
+  | "gemini-1.5-pro"
+  | "llama-3.1-8b";
+
+export type PromptTemplateId =
+  | "basic-qa"
+  | "strict-grounded"
+  | "cited-answer"
+  | "summarization"
+  | "context-window";
+
+export interface PromptTemplate {
+  id: PromptTemplateId;
+  name: string;
+  description: string;
+  systemPrompt: string;
+  userPromptTemplate: string;
+}
+
+export interface GenerationResult {
+  response: string;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+  chunksUsed: number;
+}
+
 
