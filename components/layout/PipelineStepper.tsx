@@ -31,6 +31,11 @@ const STAGES: Array<{
     label: "4) Embedding",
     helper: "Convert chunks into vectors",
   },
+  {
+    id: "indexing",
+    label: "5) Vector store / Indexing",
+    helper: "Persist vectors and payload mapping",
+  },
 ];
 
 export default function PipelineStepper() {
@@ -39,6 +44,7 @@ export default function PipelineStepper() {
   const hasFile = usePlaygroundStore((s) => Boolean(s.file));
   const hasText = usePlaygroundStore((s) => Boolean((s.cleanedText || s.rawText).trim()));
   const hasChunks = usePlaygroundStore((s) => s.chunks.length > 0);
+  const hasEmbeddings = usePlaygroundStore((s) => s.embeddings.length > 0);
 
   return (
     <div className="flex items-stretch gap-3">
@@ -47,9 +53,12 @@ export default function PipelineStepper() {
         const isLocked =
           (s.id === "preprocessing" && !hasFile) || (s.id === "chunking" && !hasText);
         const isLocked2 = s.id === "embedding" && !hasChunks;
-        const locked = isLocked || isLocked2;
+        const isLocked3 = s.id === "indexing" && !hasEmbeddings;
+        const locked = isLocked || isLocked2 || isLocked3;
         const lockLabel =
-          s.id === "embedding" && !hasChunks
+          s.id === "indexing" && !hasEmbeddings
+            ? "Needs vectors"
+            : s.id === "embedding" && !hasChunks
             ? "Needs chunks"
             : s.id === "chunking" && !hasText
               ? "Needs text"

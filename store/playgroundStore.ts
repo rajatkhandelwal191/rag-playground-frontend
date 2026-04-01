@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type {
   ChunkStrategy,
+  DistanceMetric,
   EmbeddingModelId,
   EmbeddingProvider,
   DocumentMetadata,
@@ -18,6 +19,7 @@ import {
   type EmbeddingVector,
   type VectorPoint2D,
 } from "@/lib/embedding";
+import { simulateIndexingLatency, type IndexStats } from "@/lib/indexing";
 
 interface PlaygroundState {
   stage: PipelineStageId;
@@ -60,6 +62,16 @@ interface PlaygroundState {
   embeddingPoints2D: VectorPoint2D[];
   embeddingLogs: LogEntry[];
 
+  indexingOptions: {
+    collectionName: string;
+    distanceMetric: DistanceMetric;
+  };
+  setIndexingOptions: (next: Partial<PlaygroundState["indexingOptions"]>) => void;
+  indexStats: IndexStats | null;
+  indexingLogs: LogEntry[];
+
+  indexVectors: () => void;
+
   setRawText: (text: string) => void;
   setCleanedText: (text: string) => void;
   setSourceType: (sourceType: SourceType) => void;
@@ -73,6 +85,7 @@ interface PlaygroundState {
   generateChunks: () => void;
 
   generateEmbeddings: () => void;
+  // indexVectors is declared above with indexing state
 }
 
 export const usePlaygroundStore = create<PlaygroundState>((set) => ({
@@ -123,6 +136,17 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
   embeddingPoints2D: [],
   embeddingLogs: [],
 
+  indexingOptions: {
+    collectionName: "rag_playground_chunks",
+    distanceMetric: "cosine",
+  },
+  setIndexingOptions: (next) =>
+    set((state) => ({
+      indexingOptions: { ...state.indexingOptions, ...next },
+    })),
+  indexStats: null,
+  indexingLogs: [],
+
   setRawText: (text) => set({ rawText: text }),
   setCleanedText: (text) => set({ cleanedText: text }),
 
@@ -141,7 +165,9 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
           ? { preprocessingLogs: [...state.preprocessingLogs, entry] }
           : stage === "chunking"
             ? { chunkingLogs: [...state.chunkingLogs, entry] }
-            : { embeddingLogs: [...state.embeddingLogs, entry] };
+            : stage === "embedding"
+              ? { embeddingLogs: [...state.embeddingLogs, entry] }
+              : { indexingLogs: [...state.indexingLogs, entry] };
     }),
 
   clearLogs: (stage) =>
@@ -152,7 +178,9 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
           ? { preprocessingLogs: [] }
           : stage === "chunking"
             ? { chunkingLogs: [] }
-            : { embeddingLogs: [] }
+            : stage === "embedding"
+              ? { embeddingLogs: [] }
+              : { indexingLogs: [] }
     ),
 
   loadSample: () =>
@@ -168,6 +196,8 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
         embeddings: [],
         embeddingPoints2D: [],
         embeddingLogs: [],
+        indexStats: null,
+        indexingLogs: [],
         ingestionLogs: [
           ...state.ingestionLogs,
           {
@@ -214,6 +244,8 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
       embeddings: [],
       embeddingPoints2D: [],
       embeddingLogs: [],
+      indexStats: null,
+      indexingLogs: [],
     }));
 
     const steps: Array<{ t: number; progress: number; msg?: string }> = [
@@ -446,6 +478,82 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
         embeddings,
         embeddingPoints2D: points,
         embeddingLogs: [...state.embeddingLogs, ...logs],
+      };
+    }),
+
+  indexVectors: () =>
+    set((state) => {
+      const vectors = state.embeddings;
+      const collectionName =
+        state.indexingOptions.collectionName.trim() || "rag_playground_chunks";
+      const distanceMetric = state.indexingOptions.distanceMetric;
+      const docId = state.file?.documentName ?? "unknown_document";
+      const documentCount = state.file ? 1 : 0;
+
+      if (!vectors.length) {
+        const e: LogEntry = {
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: "No embeddings available to index",
+        };
+        return { indexingLogs: [...state.indexingLogs, e] };
+      }
+
+      const latencyMs = simulateIndexingLatency({
+        vectorCount: vectors.length,
+        batchSize: state.embeddingOptions.batchSize,
+      });
+
+      const stats: IndexStats = {
+        collectionName,
+        vectorCount: vectors.length,
+        totalChunks: state.chunks.length,
+        documentCount,
+        indexingLatencyMs: latencyMs,
+        distanceMetric,
+      };
+
+      const logs: LogEntry[] = [
+        {
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: "Indexing started",
+        },
+        {
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: `Collection name: ${collectionName}`,
+        },
+        {
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: `Distance metric: ${distanceMetric}`,
+        },
+        {
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: `Indexing latency ${latencyMs}ms`,
+        },
+        {
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: `Vectors upserted: ${vectors.length}`,
+        },
+        {
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: `Document id: ${docId}`,
+        },
+        {
+          id: crypto.randomUUID(),
+          tsISO: new Date().toISOString(),
+          message: "Indexing completed",
+        },
+      ];
+
+      return {
+        indexStats: stats,
+        indexingLogs: [...state.indexingLogs, ...logs],
       };
     }),
 }));

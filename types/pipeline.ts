@@ -2,7 +2,8 @@ export type PipelineStageId =
   | "ingestion"
   | "preprocessing"
   | "chunking"
-  | "embedding";
+  | "embedding"
+  | "indexing";
 
 export type SourceType = "upload" | "sample";
 
@@ -22,6 +23,8 @@ export type EmbeddingModelId =
   | "openai-text-embedding-3-large"
   | "cohere-embed-english-v3.0"
   | "local-minilm";
+
+export type DistanceMetric = "cosine" | "dot" | "euclidean";
 
 export interface DocumentMetadata {
   documentName: string;
