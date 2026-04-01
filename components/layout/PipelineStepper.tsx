@@ -36,6 +36,11 @@ const STAGES: Array<{
     label: "5) Vector store / Indexing",
     helper: "Persist vectors and payload mapping",
   },
+  {
+    id: "retrieval",
+    label: "6) Retrieval",
+    helper: "Search and retrieve relevant chunks",
+  },
 ];
 
 export default function PipelineStepper() {
@@ -45,18 +50,26 @@ export default function PipelineStepper() {
   const hasText = usePlaygroundStore((s) => Boolean((s.cleanedText || s.rawText).trim()));
   const hasChunks = usePlaygroundStore((s) => s.chunks.length > 0);
   const hasEmbeddings = usePlaygroundStore((s) => s.embeddings.length > 0);
+  const hasIndex = usePlaygroundStore((s) => Boolean(s.indexStats));
 
   return (
     <div className="flex items-stretch gap-3">
       {STAGES.map((s, idx) => {
         const isActive = stage === s.id;
-        const isLocked =
-          (s.id === "preprocessing" && !hasFile) || (s.id === "chunking" && !hasText);
-        const isLocked2 = s.id === "embedding" && !hasChunks;
-        const isLocked3 = s.id === "indexing" && !hasEmbeddings;
-        const locked = isLocked || isLocked2 || isLocked3;
+        
+        // Locking logic: each stage requires the previous output to be ready
+        const isPreprocessingLocked = s.id === "preprocessing" && !hasFile;
+        const isChunkingLocked = s.id === "chunking" && (!hasFile || !hasText);
+        const isEmbeddingLocked = s.id === "embedding" && (!hasFile || !hasText || !hasChunks);
+        const isIndexingLocked = s.id === "indexing" && (!hasFile || !hasText || !hasChunks || !hasEmbeddings);
+        const isRetrievalLocked = s.id === "retrieval" && (!hasFile || !hasText || !hasChunks || !hasEmbeddings || !hasIndex);
+
+        const locked = isPreprocessingLocked || isChunkingLocked || isEmbeddingLocked || isIndexingLocked || isRetrievalLocked;
+
         const lockLabel =
-          s.id === "indexing" && !hasEmbeddings
+          s.id === "retrieval" && !hasIndex
+            ? "Needs index"
+            : s.id === "indexing" && !hasEmbeddings
             ? "Needs vectors"
             : s.id === "embedding" && !hasChunks
             ? "Needs chunks"

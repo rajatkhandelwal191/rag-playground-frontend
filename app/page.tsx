@@ -6,6 +6,7 @@ import PreprocessingStage from "@/components/preprocessing/PreprocessingStage";
 import ChunkingStage from "@/components/chunking/ChunkingStage";
 import EmbeddingStage from "@/components/embedding/EmbeddingStage";
 import IndexingStage from "@/components/indexing/IndexingStage";
+import RetrievalStage from "@/components/retrieval/RetrievalStage";
 import { usePlaygroundStore } from "@/store/playgroundStore";
 
 export default function Home() {
@@ -19,8 +20,12 @@ export default function Home() {
         <PreprocessingStage />
       ) : stage === "chunking" ? (
         <ChunkingStage />
+      ) : stage === "embedding" ? (
+        <EmbeddingStage />
+      ) : stage === "indexing" ? (
+        <IndexingStage />
       ) : (
-        stage === "embedding" ? <EmbeddingStage /> : <IndexingStage />
+        <RetrievalStage />
       )}
     </main>
   );

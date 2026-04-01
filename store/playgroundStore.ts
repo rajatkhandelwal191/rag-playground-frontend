@@ -20,6 +20,7 @@ import {
   type VectorPoint2D,
 } from "@/lib/embedding";
 import { simulateIndexingLatency, type IndexStats } from "@/lib/indexing";
+import { simulateRetrieval } from "@/lib/retrieval";
 
 interface PlaygroundState {
   stage: PipelineStageId;
@@ -70,7 +71,20 @@ interface PlaygroundState {
   indexStats: IndexStats | null;
   indexingLogs: LogEntry[];
 
+  retrievalOptions: {
+    query: string;
+    topK: number;
+    scoreThreshold: number;
+    metadataFilter: string;
+  };
+  setRetrievalOptions: (
+    next: Partial<PlaygroundState["retrievalOptions"]>
+  ) => void;
+  retrievalResults: RetrievalResult[];
+  retrievalLogs: LogEntry[];
+
   indexVectors: () => void;
+  retrieve: () => void;
 
   setRawText: (text: string) => void;
   setCleanedText: (text: string) => void;
@@ -147,6 +161,19 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
   indexStats: null,
   indexingLogs: [],
 
+  retrievalOptions: {
+    query: "",
+    topK: 5,
+    scoreThreshold: 0.75,
+    metadataFilter: "",
+  },
+  setRetrievalOptions: (next) =>
+    set((state) => ({
+      retrievalOptions: { ...state.retrievalOptions, ...next },
+    })),
+  retrievalResults: [],
+  retrievalLogs: [],
+
   setRawText: (text) => set({ rawText: text }),
   setCleanedText: (text) => set({ cleanedText: text }),
 
@@ -167,7 +194,9 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
             ? { chunkingLogs: [...state.chunkingLogs, entry] }
             : stage === "embedding"
               ? { embeddingLogs: [...state.embeddingLogs, entry] }
-              : { indexingLogs: [...state.indexingLogs, entry] };
+              : stage === "indexing"
+                ? { indexingLogs: [...state.indexingLogs, entry] }
+                : { retrievalLogs: [...state.retrievalLogs, entry] };
     }),
 
   clearLogs: (stage) =>
@@ -180,7 +209,9 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
             ? { chunkingLogs: [] }
             : stage === "embedding"
               ? { embeddingLogs: [] }
-              : { indexingLogs: [] }
+              : stage === "indexing"
+                ? { indexingLogs: [] }
+                : { retrievalLogs: [] }
     ),
 
   loadSample: () =>
@@ -554,6 +585,55 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
       return {
         indexStats: stats,
         indexingLogs: [...state.indexingLogs, ...logs],
+      };
+    }),
+
+  retrieve: () =>
+    set((state) => {
+      const query = state.retrievalOptions.query.trim();
+      const docName = state.file?.documentName ?? "unknown_document";
+
+      if (!query) {
+        return {
+          retrievalLogs: [
+            ...state.retrievalLogs,
+            {
+              id: crypto.randomUUID(),
+              tsISO: new Date().toISOString(),
+              message: "Please enter a search query",
+            },
+          ],
+        };
+      }
+
+      if (!state.chunks.length) {
+        return {
+          retrievalLogs: [
+            ...state.retrievalLogs,
+            {
+              id: crypto.randomUUID(),
+              tsISO: new Date().toISOString(),
+              message: "No index available to search. Please complete the indexing stage first.",
+            },
+          ],
+        };
+      }
+
+      const { results, logs } = simulateRetrieval({
+        query,
+        chunks: state.chunks,
+        options: {
+          query,
+          topK: state.retrievalOptions.topK,
+          scoreThreshold: state.retrievalOptions.scoreThreshold,
+          metadataFilter: state.retrievalOptions.metadataFilter,
+        },
+        documentName: docName,
+      });
+
+      return {
+        retrievalResults: results,
+        retrievalLogs: [...state.retrievalLogs, ...logs],
       };
     }),
 }));

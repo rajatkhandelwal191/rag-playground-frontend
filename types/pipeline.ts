@@ -3,7 +3,8 @@ export type PipelineStageId =
   | "preprocessing"
   | "chunking"
   | "embedding"
-  | "indexing";
+  | "indexing"
+  | "retrieval";
 
 export type SourceType = "upload" | "sample";
 
@@ -41,5 +42,13 @@ export interface LogEntry {
   id: string;
   tsISO: string;
   message: string;
+}
+
+export interface RetrievalResult {
+  chunkId: string;
+  content: string;
+  score: number;
+  documentName: string;
+  metadata?: Record<string, string | number | boolean>;
 }
 
