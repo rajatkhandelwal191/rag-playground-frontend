@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { Search, Info } from "lucide-react";
 import { usePlaygroundStore } from "@/store/playgroundStore";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { retrieveChunks } from "@/lib/api";
 
 const SUGGESTED_QUESTIONS = [
   "What is the main topic of this document?",
@@ -17,7 +19,7 @@ const SUGGESTED_QUESTIONS = [
 ];
 
 export default function RetrievalControls() {
-  const { retrievalOptions, setRetrievalOptions, retrieve } = usePlaygroundStore();
+  const { retrievalOptions, setRetrievalOptions, retrieve, useBackend, addLog, indexingOptions, setRetrievalResults } = usePlaygroundStore();
 
   const handleQueryChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setRetrievalOptions({ query: e.target.value });
@@ -30,6 +32,42 @@ export default function RetrievalControls() {
   const handleThresholdChange = (val: number[]) => {
     setRetrievalOptions({ scoreThreshold: val[0] });
   };
+
+  const handleRetrieve = useCallback(async () => {
+    if (useBackend) {
+      addLog("retrieval", "Running retrieval via backend...");
+      try {
+        const result = await retrieveChunks(retrievalOptions.query, {
+          top_k: retrievalOptions.topK,
+          collection_name: indexingOptions.collectionName,
+        });
+
+        // Convert backend results to frontend format
+        const convertedResults = result.results.map((r) => ({
+          chunkId: r.chunk.id,
+          content: r.chunk.content,
+          score: r.score,
+          documentName: r.chunk.document_id,
+          metadata: {
+            start: r.chunk.start_pos,
+            end: r.chunk.end_pos,
+            tokenCount: r.chunk.token_count,
+          },
+        }));
+
+        setRetrievalResults(convertedResults);
+        addLog("retrieval", `Retrieved ${result.total_found} results`);
+        addLog("retrieval", `Query: "${result.query}"`);
+        addLog("retrieval", `Latency: ${result.latency_ms}ms`);
+        addLog("retrieval", "Retrieval complete");
+      } catch (error) {
+        addLog("retrieval", `Retrieval failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    } else {
+      // Use local retrieval via store
+      retrieve();
+    }
+  }, [useBackend, retrievalOptions, indexingOptions, addLog, setRetrievalResults, retrieve]);
 
   return (
     <Card className="h-full">
@@ -110,7 +148,7 @@ export default function RetrievalControls() {
           </div>
         </div>
 
-        <Button className="w-full mt-4" size="lg" onClick={retrieve}>
+        <Button className="w-full mt-4" size="lg" onClick={handleRetrieve}>
           Run Retrieval
         </Button>
       </CardContent>

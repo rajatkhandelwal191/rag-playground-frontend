@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,25 +12,71 @@ import LLMControls from "./LLMControls";
 import PromptTemplateSelector from "./PromptTemplateSelector";
 import RetrievedChunksDisplay from "./RetrievedChunksDisplay";
 import ResponseArea from "./ResponseArea";
+import { generateResponse as generateResponseApi } from "@/lib/api";
 
 export default function GenerationStage() {
   const {
     generationOptions,
     setGenerationOptions,
     generationResult,
+    setGenerationResult,
     generationLogs,
     isGenerating,
+    setIsGenerating,
     generateResponse,
     resetGeneration,
     rerankedResults,
     retrievalResults,
     retrievalOptions,
+    useBackend,
+    addLog,
   } = usePlaygroundStore();
 
   const chunksToUse =
     rerankedResults.length > 0 ? rerankedResults : retrievalResults;
   const hasResults = chunksToUse.length > 0;
   const currentTemplate = PROMPT_TEMPLATES[generationOptions.promptTemplate];
+
+  const handleGenerateResponse = useCallback(async () => {
+    if (useBackend) {
+      addLog("generation", "Generating response via backend...");
+      setIsGenerating(true);
+      try {
+        const contextChunks = chunksToUse.map((c) => 
+          "content" in c ? c.content : JSON.stringify(c)
+        );
+        
+        const result = await generateResponseApi(retrievalOptions.query, contextChunks, {
+          provider: generationOptions.provider as "openai" | "google" | "anthropic" | "cohere",
+          model: generationOptions.model,
+          temperature: generationOptions.temperature,
+          max_tokens: generationOptions.maxTokens,
+          system_prompt: currentTemplate.systemPrompt,
+        });
+
+        setGenerationResult({
+          response: result.response,
+          inputTokens: result.input_tokens,
+          outputTokens: result.output_tokens,
+          latencyMs: result.latency_ms,
+          chunksUsed: result.chunks_used,
+        });
+
+        addLog("generation", `Response generated using ${result.model}`);
+        addLog("generation", `Input tokens: ${result.input_tokens}`);
+        addLog("generation", `Output tokens: ${result.output_tokens}`);
+        addLog("generation", `Latency: ${result.latency_ms}ms`);
+        addLog("generation", "Generation complete");
+      } catch (error) {
+        addLog("generation", `Generation failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      } finally {
+        setIsGenerating(false);
+      }
+    } else {
+      // Use local generation via store
+      generateResponse();
+    }
+  }, [useBackend, retrievalOptions.query, chunksToUse, generationOptions, currentTemplate, addLog, setGenerationResult, setIsGenerating, generateResponse]);
 
   return (
     <div className="space-y-6">
@@ -50,7 +97,7 @@ export default function GenerationStage() {
             Reset
           </Button>
           <Button
-            onClick={generateResponse}
+            onClick={handleGenerateResponse}
             disabled={!hasResults || isGenerating}
             className="bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
           >

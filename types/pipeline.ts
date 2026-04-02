@@ -32,6 +32,7 @@ export type EmbeddingModelId =
 export type DistanceMetric = "cosine" | "dot" | "euclidean";
 
 export interface DocumentMetadata {
+  documentId: string;  // Backend document ID
   documentName: string;
   fileType: "PDF" | "DOCX" | "TXT";
   pages?: number;

@@ -1,14 +1,16 @@
 "use client";
 
+import { useCallback } from "react";
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";``
 import ProcessingLogs from "@/components/preprocessing/ProcessingLogs";
 import { Textarea } from "@/components/ui/textarea";
 import { usePlaygroundStore } from "@/store/playgroundStore";
 import type { ChunkStrategy } from "@/types/pipeline";
+import { createChunks } from "@/lib/api";
 
 const STRATEGIES: Array<{ id: ChunkStrategy; label: string; hint: string }> = [
   { id: "character", label: "Character", hint: "Split by characters" },
@@ -23,16 +25,55 @@ export default function ChunkingStage() {
   const chunkingOptions = usePlaygroundStore((s) => s.chunkingOptions);
   const setChunkingOptions = usePlaygroundStore((s) => s.setChunkingOptions);
   const chunks = usePlaygroundStore((s) => s.chunks);
+  const setChunks = usePlaygroundStore((s) => s.setChunks);
   const logs = usePlaygroundStore((s) => s.chunkingLogs);
-  const generateChunks = usePlaygroundStore((s) => s.generateChunks);
+  const addLog = usePlaygroundStore((s) => s.addLog);
   const rawText = usePlaygroundStore((s) => s.rawText);
   const cleanedText = usePlaygroundStore((s) => s.cleanedText);
-  const documentId = usePlaygroundStore((s) => s.file?.documentName ?? "—");
+  const file = usePlaygroundStore((s) => s.file);
+  const useBackend = usePlaygroundStore((s) => s.useBackend);
+  const setStage = usePlaygroundStore((s) => s.setStage);
+  const documentId = file?.documentId ?? "—";
 
   const baseText = (cleanedText || rawText).trim();
   const [selectedChunkId, setSelectedChunkId] = React.useState<string | null>(
     null
   );
+
+  const handleGenerateChunks = useCallback(async () => {
+    if (useBackend && file) {
+      addLog("chunking", "Creating chunks via backend...");
+      try {
+        const result = await createChunks(file.documentId, {
+          strategy: chunkingOptions.strategy as "fixed" | "semantic" | "recursive",
+          chunk_size: chunkingOptions.chunkSize,
+          chunk_overlap: chunkingOptions.overlap,
+        });
+        
+        // Convert backend chunks to frontend format
+        const convertedChunks = result.chunks.map((c, index) => ({
+          id: c.id,
+          chunkId: c.id,
+          text: c.content,
+          start: c.start_pos,
+          end: c.end_pos,
+          tokenCount: c.token_count,
+          index,
+        }));
+        
+        setChunks(convertedChunks);
+        addLog("chunking", `Created ${result.total_chunks} chunks`);
+        addLog("chunking", "Chunking complete");
+        setStage("embedding");
+      } catch (error) {
+        addLog("chunking", `Chunking failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    } else {
+      // Use local generation via store
+      const generateChunks = usePlaygroundStore.getState().generateChunks;
+      generateChunks();
+    }
+  }, [useBackend, file, chunkingOptions, addLog, setChunks, setStage]);
 
   React.useEffect(() => {
     if (!chunks.length) {
@@ -113,7 +154,7 @@ export default function ChunkingStage() {
               </div>
             </div>
 
-            <Button className="w-full" onClick={generateChunks} disabled={!baseText}>
+            <Button className="w-full" onClick={handleGenerateChunks} disabled={!baseText}>
               Generate chunks
             </Button>
           </CardContent>

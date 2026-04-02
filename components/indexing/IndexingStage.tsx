@@ -1,18 +1,24 @@
 "use client";
 
+import { useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import ProcessingLogs from "@/components/preprocessing/ProcessingLogs";
 import { usePlaygroundStore } from "@/store/playgroundStore";
 import type { DistanceMetric } from "@/types/pipeline";
+import { indexEmbeddings, getIndexStats } from "@/lib/api";
 
 export default function IndexingStage() {
   const opts = usePlaygroundStore((s) => s.indexingOptions);
   const setOpts = usePlaygroundStore((s) => s.setIndexingOptions);
   const stats = usePlaygroundStore((s) => s.indexStats);
+  const setIndexStats = usePlaygroundStore((s) => s.setIndexStats);
   const logs = usePlaygroundStore((s) => s.indexingLogs);
   const indexVectors = usePlaygroundStore((s) => s.indexVectors);
+  const useBackend = usePlaygroundStore((s) => s.useBackend);
+  const addLog = usePlaygroundStore((s) => s.addLog);
+  const setStage = usePlaygroundStore((s) => s.setStage);
   const chunks = usePlaygroundStore((s) => s.chunks);
   const embeddings = usePlaygroundStore((s) => s.embeddings);
   const docId = usePlaygroundStore((s) => s.file?.documentName ?? "—");
@@ -25,6 +31,42 @@ export default function IndexingStage() {
       documentId: vec?.documentId ?? docId,
     };
   });
+
+  const handleIndexVectors = useCallback(async () => {
+    if (useBackend) {
+      addLog("indexing", "Indexing vectors via backend...");
+      try {
+        const result = await indexEmbeddings({
+          collection_name: opts.collectionName,
+          distance_metric: opts.distanceMetric as "cosine" | "euclidean" | "dot_product",
+        });
+
+        // Fetch updated stats (can be used for debugging)
+        await getIndexStats(opts.collectionName);
+
+        // Update store with backend results
+        setIndexStats({
+          collectionName: opts.collectionName,
+          vectorCount: result.indexed_count,
+          totalChunks: chunks.length,
+          documentCount: docId === "—" ? 0 : 1,
+          indexingLatencyMs: 0, // Backend doesn't return this
+          distanceMetric: opts.distanceMetric,
+        });
+
+        addLog("indexing", `Collection name: ${opts.collectionName}`);
+        addLog("indexing", `Distance metric: ${opts.distanceMetric}`);
+        addLog("indexing", `Indexed ${result.indexed_count} vectors`);
+        addLog("indexing", "Indexing complete");
+        setStage("retrieval");
+      } catch (error) {
+        addLog("indexing", `Indexing failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    } else {
+      // Use local indexing via store
+      indexVectors();
+    }
+  }, [useBackend, opts, chunks.length, docId, addLog, setIndexStats, setStage, indexVectors]);
 
   return (
     <div className="grid grid-cols-12 gap-6">
@@ -68,7 +110,7 @@ export default function IndexingStage() {
               </div>
             </div>
 
-            <Button className="w-full" onClick={indexVectors} disabled={!embeddings.length}>
+            <Button className="w-full" onClick={handleIndexVectors} disabled={!embeddings.length}>
               Index vectors (upsert)
             </Button>
           </CardContent>

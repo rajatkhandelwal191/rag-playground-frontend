@@ -1,9 +1,11 @@
 "use client";
 
+import { useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { usePlaygroundStore } from "@/store/playgroundStore";
 import { Badge } from "@/components/ui/badge";
+import { preprocessDocument } from "@/lib/api";
 
 export default function CleaningControls() {
   const rawText = usePlaygroundStore((s) => s.rawText);
@@ -12,6 +14,9 @@ export default function CleaningControls() {
   const addLog = usePlaygroundStore((s) => s.addLog);
   const options = usePlaygroundStore((s) => s.preprocessingOptions);
   const setOptions = usePlaygroundStore((s) => s.setPreprocessingOptions);
+  const useBackend = usePlaygroundStore((s) => s.useBackend);
+  const file = usePlaygroundStore((s) => s.file);
+  const setStage = usePlaygroundStore((s) => s.setStage);
 
   const baseText = cleanedText || rawText;
 
@@ -45,26 +50,46 @@ export default function CleaningControls() {
       .replace(/[“”]/g, '"')
       .replace(/[‘’]/g, "'");
 
-  const applyToggles = (t: string) => {
+  const applyToggles = useCallback((t: string) => {
     let next = t;
     if (options.ocrCleanup) next = ocrCleanup(next);
     if (!options.preservePunctuation) next = next.replace(/[^\w\s]/g, "");
     if (options.lowercase) next = next.toLowerCase();
     return next;
-  };
+  }, [options.ocrCleanup, options.preservePunctuation, options.lowercase]);
 
-  const runAll = () => {
+  const runAll = useCallback(async () => {
     addLog("preprocessing", "Preprocessing started");
-    let next = baseText.replace(/\r\n/g, "\n");
-    next = normalizeUnicode(next);
-    next = removeNoise(next);
-    next = removePageHeaders(next);
-    next = removeExtraSpaces(next);
-    next = removeEmptyLines(next);
-    next = applyToggles(next).trim();
-    setCleanedText(next);
-    addLog("preprocessing", "Preprocessing complete");
-  };
+    
+    if (useBackend && file?.documentId) {
+      try {
+        const result = await preprocessDocument(file.documentId, {
+          lowercase: options.lowercase,
+          remove_extra_whitespace: true,
+          normalize_unicode: true,
+          ocr_cleanup: options.ocrCleanup,
+          preserve_punctuation: options.preservePunctuation,
+        });
+        setCleanedText(result.cleaned_text_preview);
+        addLog("preprocessing", `Text cleaned: ${result.stats_after.char_count} chars`);
+        addLog("preprocessing", "Preprocessing complete");
+        setStage("chunking");
+      } catch (error) {
+        addLog("preprocessing", `Preprocessing failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    } else {
+      // Local processing
+      let next = baseText.replace(/\r\n/g, "\n");
+      next = normalizeUnicode(next);
+      next = removeNoise(next);
+      next = removePageHeaders(next);
+      next = removeExtraSpaces(next);
+      next = removeEmptyLines(next);
+      next = applyToggles(next).trim();
+      setCleanedText(next);
+      addLog("preprocessing", "Preprocessing complete");
+    }
+  }, [useBackend, file, options, baseText, addLog, setCleanedText, setStage, applyToggles]);
 
   return (
     <Card>

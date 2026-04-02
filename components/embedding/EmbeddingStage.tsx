@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,8 @@ import ProcessingLogs from "@/components/preprocessing/ProcessingLogs";
 import { Textarea } from "@/components/ui/textarea";
 import { usePlaygroundStore } from "@/store/playgroundStore";
 import type { EmbeddingModelId, EmbeddingProvider } from "@/types/pipeline";
-import { defaultModelForProvider, modelDimension } from "@/lib/embedding";
+import { defaultModelForProvider, modelDimension, projectTo2D } from "@/lib/embedding";
+import { generateEmbeddings as generateEmbeddingsApi, type Embedding } from "@/lib/api";
 
 function providerModels(p: EmbeddingProvider): EmbeddingModelId[] {
   switch (p) {
@@ -31,6 +33,11 @@ export default function EmbeddingStage() {
   const opts = usePlaygroundStore((s) => s.embeddingOptions);
   const setOpts = usePlaygroundStore((s) => s.setEmbeddingOptions);
   const generate = usePlaygroundStore((s) => s.generateEmbeddings);
+  const useBackend = usePlaygroundStore((s) => s.useBackend);
+  const addLog = usePlaygroundStore((s) => s.addLog);
+  const setStage = usePlaygroundStore((s) => s.setStage);
+  const setEmbeddings = usePlaygroundStore((s) => s.setEmbeddings);
+  const setEmbeddingPoints2D = usePlaygroundStore((s) => s.setEmbeddingPoints2D);
   const documentId = usePlaygroundStore((s) => s.file?.documentName ?? "—");
 
   const dim = modelDimension(opts.model);
@@ -47,6 +54,47 @@ export default function EmbeddingStage() {
   const selected = selectedChunkId
     ? embeddings.find((e) => e.chunkId === selectedChunkId)
     : embeddings[0];
+
+  const handleGenerateEmbeddings = useCallback(async () => {
+    if (useBackend && chunks.length > 0) {
+      addLog("embedding", "Generating embeddings via backend...");
+      try {
+        const chunkIds = chunks.map((c) => c.chunkId);
+        const result = await generateEmbeddingsApi(chunkIds, {
+          provider: opts.provider as "google" | "openai" | "cohere" | "local",
+          model: opts.model,
+          batch_size: opts.batchSize,
+        });
+
+        // Convert backend embeddings to frontend format
+        const convertedEmbeddings = result.embeddings.map((e: Embedding) => ({
+          id: e.vector_id,
+          chunkId: e.chunk_id,
+          documentId: e.document_id,
+          values: e.values,
+          dimension: e.dimension,
+          model: e.model,
+          latencyMs: 0,
+        }));
+
+        setEmbeddings(convertedEmbeddings);
+
+        // Generate 2D projection for visualization
+        const points2D = projectTo2D(convertedEmbeddings);
+        setEmbeddingPoints2D(points2D);
+
+        addLog("embedding", `Generated ${result.total_embedded} embeddings`);
+        addLog("embedding", `Model: ${result.model}, Dimension: ${result.dimension}`);
+        addLog("embedding", "Embedding generation complete");
+        setStage("indexing");
+      } catch (error) {
+        addLog("embedding", `Embedding generation failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    } else {
+      // Use local generation via store
+      generate();
+    }
+  }, [useBackend, chunks, opts, addLog, setEmbeddings, setEmbeddingPoints2D, setStage, generate]);
 
   return (
     <div className="grid grid-cols-12 gap-6">
@@ -131,7 +179,7 @@ export default function EmbeddingStage() {
               />
             </div>
 
-            <Button className="w-full" onClick={generate} disabled={!chunks.length}>
+            <Button className="w-full" onClick={handleGenerateEmbeddings} disabled={!chunks.length}>
               Generate embeddings
             </Button>
           </CardContent>

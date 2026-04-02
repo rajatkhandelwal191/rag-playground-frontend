@@ -32,12 +32,19 @@ import { simulateReranking } from "@/lib/reranking";
 import { simulateGeneration, defaultModelForLLMProvider, PROMPT_TEMPLATES } from "@/lib/generation";
 
 interface PlaygroundState {
+  // Backend toggle
+  useBackend: boolean;
+  setUseBackend: (value: boolean) => void;
+  backendUrl: string;
+  setBackendUrl: (url: string) => void;
+
   stage: PipelineStageId;
   setStage: (stage: PipelineStageId) => void;
 
   rawText: string;
   cleanedText: string;
   file: DocumentMetadata | null;
+  setFile: (file: DocumentMetadata | null) => void;
   sourceType: SourceType;
   ingestionLogs: LogEntry[];
   preprocessingLogs: LogEntry[];
@@ -60,6 +67,7 @@ interface PlaygroundState {
   };
   setChunkingOptions: (next: Partial<PlaygroundState["chunkingOptions"]>) => void;
   chunks: Chunk[];
+  setChunks: (chunks: Chunk[]) => void;
   chunkingLogs: LogEntry[];
 
   embeddingOptions: {
@@ -69,7 +77,9 @@ interface PlaygroundState {
   };
   setEmbeddingOptions: (next: Partial<PlaygroundState["embeddingOptions"]>) => void;
   embeddings: EmbeddingVector[];
+  setEmbeddings: (embeddings: EmbeddingVector[]) => void;
   embeddingPoints2D: VectorPoint2D[];
+  setEmbeddingPoints2D: (points: VectorPoint2D[]) => void;
   embeddingLogs: LogEntry[];
 
   indexingOptions: {
@@ -78,6 +88,7 @@ interface PlaygroundState {
   };
   setIndexingOptions: (next: Partial<PlaygroundState["indexingOptions"]>) => void;
   indexStats: IndexStats | null;
+  setIndexStats: (stats: IndexStats | null) => void;
   indexingLogs: LogEntry[];
 
   retrievalOptions: {
@@ -90,6 +101,7 @@ interface PlaygroundState {
     next: Partial<PlaygroundState["retrievalOptions"]>
   ) => void;
   retrievalResults: RetrievalResult[];
+  setRetrievalResults: (results: RetrievalResult[]) => void;
   retrievalLogs: LogEntry[];
   rerankingOptions: {
     topK: number;
@@ -111,8 +123,10 @@ interface PlaygroundState {
     next: Partial<PlaygroundState["generationOptions"]>
   ) => void;
   generationResult: GenerationResult | null;
+  setGenerationResult: (result: GenerationResult | null) => void;
   generationLogs: LogEntry[];
   isGenerating: boolean;
+  setIsGenerating: (value: boolean) => void;
   currentResponse: string;
   generateResponse: () => void;
   resetGeneration: () => void;
@@ -146,12 +160,19 @@ interface PlaygroundState {
 }
 
 export const usePlaygroundStore = create<PlaygroundState>((set) => ({
+  // Backend toggle
+  useBackend: false,
+  setUseBackend: (value) => set({ useBackend: value }),
+  backendUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1",
+  setBackendUrl: (url) => set({ backendUrl: url }),
+
   stage: "ingestion",
   setStage: (stage) => set({ stage }),
 
   rawText: "",
   cleanedText: "",
   file: null,
+  setFile: (file) => set({ file }),
   sourceType: "upload",
   ingestionLogs: [],
   preprocessingLogs: [],
@@ -178,6 +199,7 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
       chunkingOptions: { ...state.chunkingOptions, ...next },
     })),
   chunks: [],
+  setChunks: (chunks) => set({ chunks }),
   chunkingLogs: [],
 
   embeddingOptions: {
@@ -190,7 +212,9 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
       embeddingOptions: { ...state.embeddingOptions, ...next },
     })),
   embeddings: [],
+  setEmbeddings: (embeddings) => set({ embeddings }),
   embeddingPoints2D: [],
+  setEmbeddingPoints2D: (points) => set({ embeddingPoints2D: points }),
   embeddingLogs: [],
 
   indexingOptions: {
@@ -202,6 +226,7 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
       indexingOptions: { ...state.indexingOptions, ...next },
     })),
   indexStats: null,
+  setIndexStats: (stats) => set({ indexStats: stats }),
   indexingLogs: [],
 
   retrievalOptions: {
@@ -214,6 +239,7 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
     set((state) => ({
       retrievalOptions: { ...state.retrievalOptions, ...next },
     })),
+  setRetrievalResults: (results) => set({ retrievalResults: results }),
   retrievalResults: [],
   retrievalLogs: [],
   rerankingOptions: {
@@ -238,8 +264,10 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
       generationOptions: { ...state.generationOptions, ...next },
     })),
   generationResult: null,
+  setGenerationResult: (result) => set({ generationResult: result }),
   generationLogs: [],
   isGenerating: false,
+  setIsGenerating: (value) => set({ isGenerating: value }),
   currentResponse: "",
 
   evaluationMetrics: null,
