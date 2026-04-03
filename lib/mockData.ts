@@ -17,6 +17,7 @@ export function buildSampleMetadata(): DocumentMetadata {
   const tokensEstimated = Math.max(1, Math.round(characters / 4));
 
   return {
+    documentId: "sample-doc-001",
     documentName: "sample-document.txt",
     fileType: "TXT",
     pages: 1,
@@ -27,4 +28,3 @@ export function buildSampleMetadata(): DocumentMetadata {
     source: "sample",
   };
 }
-
