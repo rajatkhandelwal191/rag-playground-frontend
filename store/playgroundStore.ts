@@ -380,6 +380,7 @@ export const usePlaygroundStore = create<PlaygroundState>((set) => ({
         },
       ],
       file: {
+        documentId: crypto.randomUUID(),
         documentName: file.name,
         fileType,
         pages: fileType === "PDF" ? 2 : 1,
